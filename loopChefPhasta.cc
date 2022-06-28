@@ -86,10 +86,6 @@ int main(int argc, char** argv) {
   grstream grs = makeGRStream();
   ph::Input ctrl;
   ctrl.load("adapt.inp");
-  printf("ctrl.writeSimLog \n");
-  printf("%d", ctrl.writeSimLog);
-  if (ctrl.writeSimLog)
-      Sim_logOn("main.log");
   chefPhasta::initModelers(ctrl.writeSimLog);
   /* load the model and mesh */
   gmi_model* g = 0;
@@ -131,8 +127,6 @@ int main(int argc, char** argv) {
   destroyRStream(rs);
   freeMesh(m);
   chefPhasta::finalizeModelers(ctrl.writeSimLog);
-  if (ctrl.writeSimLog)
-      Sim_logOff();
   PCU_Comm_Free();
   MPI_Finalize();
 }
