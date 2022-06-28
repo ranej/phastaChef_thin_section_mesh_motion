@@ -9,6 +9,8 @@
 #include "SimMeshMove.h"
 #include "SimMeshTools.h"
 #include <SimAdvMeshing.h>
+#include "MeshSimAdapt.h"
+
 #include "apfSIM.h"
 #include "gmi_sim.h"
 #include <PCU.h>
@@ -17,11 +19,13 @@
 #include <maStats.h>
 #include <apfShape.h>
 #include <math.h>
+#include <ctime>
 
 extern void MSA_setBLSnapping(pMSAdapt, int onoff);
+extern void MSA_setAdaptExtrusion(pMSAdapt, int onoff);
 
 namespace pc {
-
+ 
   apf::Field* convertField(apf::Mesh* m,
     const char* inFieldname,
     const char* outFieldname) {
@@ -447,9 +451,9 @@ namespace pc {
     MSA_setAdaptBL(adapter, 1);
     MSA_setExposedBLBehavior(adapter,BL_DisallowExposed);
     MSA_setBLSnapping(adapter, 0); // currently needed for parametric model
+    MSA_setAdaptExtrusion(adapter, 1);
     MSA_setBLMinLayerAspectRatio(adapter, 0.0); // needed in parallel
     MSA_setSizeGradation(adapter, 1, 0.0);
-
     /* attach mesh size field */
     phSolver::Input inp("solver.inp", "input.config");
     attachMeshSizeField(m, in, inp);
@@ -483,14 +487,31 @@ namespace pc {
 
     apf::Vector3 v_mag = apf::Vector3(0.0,0.0,0.0);
     apf::MeshEntity* v;
+    double xyz[3];
     apf::MeshIterator* vit = m->begin(0);
     while ((v = m->iterate(vit))) {
       apf::getVector(sizes,v,0,v_mag);
       pVertex meshVertex = reinterpret_cast<pVertex>(v);
-      MSA_setVertexSize(adapter, meshVertex, v_mag[0]);
+//      SA_setVertexSize(adapter, meshVertex, v_mag[0]);
+      V_coord(meshVertex, xyz);
+      if(xyz[0]>= 0.051 && xyz[0] <=0.088 ){     
+        MSA_setVertexSize(adapter, meshVertex, 0.0005);
+//      }else if(xyz[0]>= 0.0473 && xyz[0] <0.051 || xyz[0]> 0.088 && xyz[0] < 0.0917){
+//        MSA_setVertexSize(adapter, meshVertex, 0.001);
+//      }else if(xyz[0]>= 0.0436 && xyz[0] <0.0473 || xyz[0]> 0.0917 && xyz[0] < 0.0954){
+//        MSA_setVertexSize(adapter, meshVertex, 0.002);
+//      }else if(xyz[0]>= 0 && xyz[0]<0.051 || xyz[0]> 0.088 ){
+//        MSA_setVertexSize(adapter, meshVertex, 0.001);
+      } else if (xyz[0] < 0 ){
+	MSA_setVertexSize(adapter, meshVertex, 0.002);
+      }else{
+	MSA_setVertexSize(adapter, meshVertex, 0.001); 
+      }
     }
     m->end(vit);
 
+    if(!PCU_Comm_Self())
+      printf("Size field hacked\n");
     /* write error and mesh size */
     pc::writeSequence(m, in.timeStepNumber, "error_mesh_size_");
 
@@ -505,6 +526,7 @@ namespace pc {
   void runMeshAdapter(ph::Input& in, apf::Mesh2*& m, apf::Field*& orgSF, int step) {
     /* use the size field of the mesh before mesh motion */
     apf::Field* szFld = orgSF;
+    void MSA_setAdaptExtrusion(pMSAdapt, int);
 
     if(in.simmetrixMesh == 1) {
       if (in.writeSimLog)
@@ -529,12 +551,25 @@ namespace pc {
       pMSAdapt adapter = MSA_new(sim_pm, 1);
       pPList sim_fld_lst = PList_new();
       setupSimAdapter(adapter, in, m, sim_fld_lst);
+  
+//      while(meshVertex = VIter_next(vIter)){
+ //    MSA_scaleVertexSize(msa, meshVertex, 0.5);        
+ //       MSA_setVertexSize(adapter, meshVertex, 0.0012);
+//      } 
+      VIter_delete(vIter);
+
+
 
       /* run the adapter */
       if(!PCU_Comm_Self())
         printf("do real mesh adapt\n");
       MSA_adapt(adapter, progress);
       MSA_delete(adapter);
+
+
+      time_t now = time(0);
+      char* dt = ctime(&now);
+//      std::cout << "The local date and time is: " << dt << endl;
 
       /* create Simmetrix improver */
       pVolumeMeshImprover vmi = VolumeMeshImprover_new(sim_pm);

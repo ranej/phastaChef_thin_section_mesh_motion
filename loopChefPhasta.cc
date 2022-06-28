@@ -86,6 +86,10 @@ int main(int argc, char** argv) {
   grstream grs = makeGRStream();
   ph::Input ctrl;
   ctrl.load("adapt.inp");
+  printf("ctrl.writeSimLog \n");
+  printf("%d", ctrl.writeSimLog);
+  if (ctrl.writeSimLog)
+      Sim_logOn("main.log");
   chefPhasta::initModelers(ctrl.writeSimLog);
   /* load the model and mesh */
   gmi_model* g = 0;
@@ -96,12 +100,13 @@ int main(int argc, char** argv) {
   ctrl.rs = rs;
   /* load input file for solver */
   phSolver::Input inp("solver.inp", "input.config");
+  printf("Reached before writeSequence \n");
   pc::writeSequence(m,0,"init_");
   int step = 0; int old_step = 0;
   do {
     m->verify();
     pass_info_to_phasta(m, ctrl);
-    /* take the initial mesh as size field */
+    /*h take the initial mesh as size field */
     apf::Field* szFld = samSz::isoSize(m);
     step = phasta(inp,grs,rs);
     double t0 = PCU_Time();
@@ -126,6 +131,8 @@ int main(int argc, char** argv) {
   destroyRStream(rs);
   freeMesh(m);
   chefPhasta::finalizeModelers(ctrl.writeSimLog);
+  if (ctrl.writeSimLog)
+      Sim_logOff();
   PCU_Comm_Free();
   MPI_Finalize();
 }
